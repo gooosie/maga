@@ -32,7 +32,7 @@ def split_nodes(nodes):
         yield nid, ip, port
 
 
-__version__ = '4.0.0'
+__version__ = '4.0.1'
 
 
 BOOTSTRAP_NODES = (
@@ -146,11 +146,7 @@ class Maga(asyncio.DatagramProtocol):
                     "id": self.fake_node_id(node_id)
                 }
             }, addr=addr)
-            peer_addr = [addr[0], addr[1]]
-            try:
-                peer_addr[1] = args[b"port"]
-            except KeyError:
-                pass
+            peer_addr = [addr[0], args.get(b"port", addr[1])]
             name = args.get(b"name", b"")
             await self.handle_announce_peer(proper_infohash(infohash), addr, peer_addr, name)
         elif query_type == b"find_node":
