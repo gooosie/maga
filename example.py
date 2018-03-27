@@ -9,4 +9,4 @@ class Crawler(Maga):
         logging.info(infohash)
 
 crawler = Crawler()
-crawler.run(6881)
+crawler.run(port=6881, rate=100)

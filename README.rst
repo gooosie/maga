@@ -41,11 +41,18 @@ Usage
 
     crawler = Crawler()
     # Set port to 0 will use a random available port
-    crawler.run(port=0)
+    # Set rate to 50 will limit processing only about 50 query requests per second
+    # and other requests will be dropped.
+    # If rate is <= 0, there will be no rate limit.
+    crawler.run(port=0, rate=50)
 
 
 ChangeLog
 ----------
+Version 4.1.1
+~~~~~~~~~~~~~~~
++ Add query rate limiter base on queue.
++ Add `name` param to `handle_announce_peer` method.
 
 Version 3.0.0
 ~~~~~~~~~~~~~~~
