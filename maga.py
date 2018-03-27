@@ -2,6 +2,7 @@ import asyncio
 import binascii
 import os
 import signal
+import queue
 
 from socket import inet_ntoa
 from struct import unpack
@@ -32,7 +33,7 @@ def split_nodes(nodes):
         yield nid, ip, port
 
 
-__version__ = '4.0.1'
+__version__ = '4.1.1'
 
 
 BOOTSTRAP_NODES = (
@@ -50,6 +51,18 @@ class Maga(asyncio.DatagramProtocol):
         self.bootstrap_nodes = bootstrap_nodes
         self.__running = False
         self.interval = interval
+        self.rate = 0
+        self.queue = queue.Queue()
+
+
+    def _acquire(self):
+        self.queue.put(1, block=False)
+        return self.queue.qsize() - 1 < self.rate
+
+    async def _clear_queue(self):
+        while self.__running:
+            self.queue.queue.clear()
+            await asyncio.sleep(1)
 
     def stop(self):
         self.__running = False
@@ -62,11 +75,13 @@ class Maga(asyncio.DatagramProtocol):
             for node in self.bootstrap_nodes:
                 self.find_node(addr=node)
 
-    def run(self, port=6881):
+    def run(self, port=6881, rate=0):
         coro = self.loop.create_datagram_endpoint(
                 lambda: self, local_addr=('0.0.0.0', port)
         )
         transport, _ = self.loop.run_until_complete(coro)
+
+        self.rate = rate
 
         for signame in ('SIGINT', 'SIGTERM'):
             try:
@@ -80,6 +95,7 @@ class Maga(asyncio.DatagramProtocol):
             self.find_node(addr=node, node_id=self.node_id)
 
         asyncio.ensure_future(self.auto_find_nodes(), loop=self.loop)
+        asyncio.ensure_future(self._clear_queue(), loop=self.loop)
         self.loop.run_forever()
         self.loop.close()
 
@@ -108,9 +124,11 @@ class Maga(asyncio.DatagramProtocol):
             return self.handle_response(msg, addr=addr)
 
         if msg_type == b'q':
-            return asyncio.ensure_future(
-                self.handle_query(msg, addr=addr), loop=self.loop
-            )
+            if self.rate <= 0 or self._acquire():
+                return asyncio.ensure_future(
+                    self.handle_query(msg, addr=addr), loop=self.loop
+                )
+            return
 
     def handle_response(self, msg, addr):
         args = msg[b"r"]
